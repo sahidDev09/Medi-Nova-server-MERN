@@ -3,7 +3,7 @@ const app = express();
 require("dotenv").config();
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jsonwebtoken = require("jsonwebtoken");
 const jwt = require("jsonwebtoken");
 const req = require("express/lib/request");
@@ -61,6 +61,13 @@ async function run() {
     const allBanner = client.db("MediNova").collection("banners");
     const userCollection = client.db("MediNova").collection("users");
 
+    //users get from mongodb
+
+    app.get("/users", async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
+
     //user add to database
 
     app.post("/users", async (req, res) => {
@@ -75,6 +82,33 @@ async function run() {
         });
       }
       const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
+
+    //block user from admin
+    app.patch("/users/block/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: "Blocked",
+        },
+      };
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    //make an admin
+
+    app.patch("/users/admin/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await userCollection.updateOne(filter, updatedDoc);
       res.send(result);
     });
 
