@@ -59,6 +59,24 @@ async function run() {
     //all collection
 
     const allBanner = client.db("MediNova").collection("banners");
+    const userCollection = client.db("MediNova").collection("users");
+
+    //user add to database
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+
+      const query = { email: user.email };
+      const existUser = await userCollection.findOne(query);
+      if (existUser) {
+        return res.send({
+          message: "user already exist in database",
+          insertedId: null,
+        });
+      }
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
 
     //get banner data
 
