@@ -35,6 +35,7 @@ async function run() {
     // All collections
     const allBanner = client.db("MediNova").collection("banners");
     const userCollection = client.db("MediNova").collection("users");
+    const testsCollection = client.db("MediNova").collection("tests");
 
     // Verify token middleware
     const verifyToken = async (req, res, next) => {
@@ -85,10 +86,22 @@ async function run() {
       res.send({ admin });
     });
 
+    // check is user blocked or active
+
+    // app.get("/users/status/:email", verifyToken, async (req, res) => {
+    //   const email = req.params.email;
+    //   const query = { email: email };
+    //   const user = await userCollection.findOne(query);
+    //   if (user) {
+    //     const active = user.status === "active";
+    //     return res.send({ active });
+    //   }
+    //   res.status(404).send({ message: "User not found" });
+    // });
+
     // User add to database
     app.post("/users", async (req, res) => {
       const user = req.body;
-
       const query = { email: user.email };
       const existUser = await userCollection.findOne(query);
       if (existUser) {
@@ -136,6 +149,14 @@ async function run() {
         res.send(result);
       }
     );
+
+    //get tests date form client
+
+    app.post("/tests", async (req, res) => {
+      const test = req.body;
+      const result = await testsCollection.insertOne(test);
+      res.send(result);
+    });
 
     // Get banner data
     app.get("/banner", async (req, res) => {
