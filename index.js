@@ -25,18 +25,33 @@ app.use(cookieParser());
 
 //code for token middleware
 
+// const verifyToken = async (req, res, next) => {
+
+//   console.log("inside verifytoken", req.headers);
+//   if (!token) {
+//     return res.status(401).send({ message: "unauthorized access" });
+//   }
+//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+//     if (err) {
+//       console.log(err);
+//       return res.status(401).send({ message: "unauthorized access" });
+//     }
+//     req.user = decoded;
+//     next();
+//   });
+// };
+
 const verifyToken = async (req, res, next) => {
-  const token = req.cookies?.token;
-  console.log(token);
-  if (!token) {
+  console.log("inside verifytoken", req.headers.authorization);
+  if (!req.headers.authorization) {
     return res.status(401).send({ message: "unauthorized access" });
   }
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    if (err) {
-      console.log(err);
+  const token = req.headers.authorization.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN_PRIVATE, (error, decoded) => {
+    if (error) {
       return res.status(401).send({ message: "unauthorized access" });
     }
-    req.user = decoded;
+    req.decoded = decoded;
     next();
   });
 };
@@ -63,9 +78,26 @@ async function run() {
 
     //users get from mongodb
 
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, async (req, res) => {
+      console.log(req.headers);
       const result = await userCollection.find().toArray();
       res.send(result);
+    });
+
+    // check is user admin or not
+
+    app.get("/users/admin/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "unauthorized access" });
+      }
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let admin = true;
+      if (user) {
+        admin = user?.role === "admin";
+      }
+      res.send({ admin });
     });
 
     //user add to database
@@ -120,18 +152,13 @@ async function run() {
     });
 
     // auth related api
+
     app.post("/jwt", async (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "365d",
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_PRIVATE, {
+        expiresIn: "30d",
       });
-      res
-        .cookie("token", token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-        })
-        .send({ success: true });
+      res.send({ token });
     });
     // code for Logout token
     app.get("/logout", async (req, res) => {
