@@ -4,13 +4,9 @@ require("dotenv").config();
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const jsonwebtoken = require("jsonwebtoken");
 const jwt = require("jsonwebtoken");
-const req = require("express/lib/request");
 
 const port = process.env.PORT || 8000;
-
-// middelware
 
 // middleware
 const middleOption = {
@@ -23,44 +19,9 @@ app.use(cors(middleOption));
 app.use(express.json());
 app.use(cookieParser());
 
-//code for token middleware
-
-// const verifyToken = async (req, res, next) => {
-
-//   console.log("inside verifytoken", req.headers);
-//   if (!token) {
-//     return res.status(401).send({ message: "unauthorized access" });
-//   }
-//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-//     if (err) {
-//       console.log(err);
-//       return res.status(401).send({ message: "unauthorized access" });
-//     }
-//     req.user = decoded;
-//     next();
-//   });
-// };
-
-const verifyToken = async (req, res, next) => {
-  console.log("inside verifytoken", req.headers.authorization);
-  if (!req.headers.authorization) {
-    return res.status(401).send({ message: "unauthorized access" });
-  }
-  const token = req.headers.authorization.split(" ")[1];
-  jwt.verify(token, process.env.ACCESS_TOKEN_PRIVATE, (error, decoded) => {
-    if (error) {
-      return res.status(401).send({ message: "unauthorized access" });
-    }
-    req.decoded = decoded;
-    next();
-  });
-};
-
-// mongo code
-
+// MongoDB connection
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ak33ksp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -71,21 +32,45 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    //all collection
-
+    // All collections
     const allBanner = client.db("MediNova").collection("banners");
     const userCollection = client.db("MediNova").collection("users");
 
-    //users get from mongodb
+    // Verify token middleware
+    const verifyToken = async (req, res, next) => {
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "unauthorized access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN_PRIVATE, (error, decoded) => {
+        if (error) {
+          return res.status(401).send({ message: "unauthorized access" });
+        }
+        req.decoded = decoded;
+        next();
+      });
+    };
 
-    app.get("/users", verifyToken, async (req, res) => {
+    // Verify admin middleware
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
+    // Users get from MongoDB
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       console.log(req.headers);
       const result = await userCollection.find().toArray();
       res.send(result);
     });
 
-    // check is user admin or not
-
+    // Check if user is admin
     app.get("/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -100,8 +85,7 @@ async function run() {
       res.send({ admin });
     });
 
-    //user add to database
-
+    // User add to database
     app.post("/users", async (req, res) => {
       const user = req.body;
 
@@ -117,42 +101,49 @@ async function run() {
       res.send(result);
     });
 
-    //block user from admin
-    app.patch("/users/block/:id", async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: {
-          status: "Blocked",
-        },
-      };
-      const result = await userCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
+    // Block user by admin
+    app.patch(
+      "/users/block/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status: "Blocked",
+          },
+        };
+        const result = await userCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+    );
 
-    //make an admin
+    // Make an admin
+    app.patch(
+      "/users/admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: "admin",
+          },
+        };
+        const result = await userCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      }
+    );
 
-    app.patch("/users/admin/:id", async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          role: "admin",
-        },
-      };
-      const result = await userCollection.updateOne(filter, updatedDoc);
-      res.send(result);
-    });
-
-    //get banner data
-
+    // Get banner data
     app.get("/banner", async (req, res) => {
       const result = await allBanner.find({ status: true }).toArray();
       res.json(result);
     });
 
-    // auth related api
-
+    // Auth related API
     app.post("/jwt", async (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_PRIVATE, {
@@ -160,32 +151,18 @@ async function run() {
       });
       res.send({ token });
     });
-    // code for Logout token
-    app.get("/logout", async (req, res) => {
-      try {
-        res
-          .clearCookie("token", {
-            maxAge: 0,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-          })
-          .send({ success: true });
-        console.log("Logout successful");
-      } catch (err) {
-        res.status(500).send(err);
-      }
-    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
   } finally {
+    // Ensure client will close when you finish/error
   }
 }
 run().catch(console.dir);
 
-// end of mongodb
+// End of MongoDB
 
 app.get("/", (req, res) => {
   res.send("Hello MediNova");
