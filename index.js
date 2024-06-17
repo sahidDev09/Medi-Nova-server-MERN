@@ -165,6 +165,13 @@ async function run() {
       res.send(result);
     });
 
+    //get test data
+
+    app.get("/tests", async (req, res) => {
+      const result = await testsCollection.find().toArray();
+      res.send(result);
+    });
+
     // Get banner data
     app.get("/banner", async (req, res) => {
       const result = await allBanner.find({ status: true }).toArray();
