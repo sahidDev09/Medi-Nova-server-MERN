@@ -132,6 +132,13 @@ async function run() {
       }
     );
 
+    //user modal
+    app.get("/user/info/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const result = await userCollection.findOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+
     // Make an admin
     app.patch(
       "/users/admin/:id",
