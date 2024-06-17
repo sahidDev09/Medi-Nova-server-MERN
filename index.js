@@ -88,16 +88,16 @@ async function run() {
 
     // check is user blocked or active
 
-    // app.get("/users/status/:email", verifyToken, async (req, res) => {
-    //   const email = req.params.email;
-    //   const query = { email: email };
-    //   const user = await userCollection.findOne(query);
-    //   if (user) {
-    //     const active = user.status === "active";
-    //     return res.send({ active });
-    //   }
-    //   res.status(404).send({ message: "User not found" });
-    // });
+    app.get("/users/status/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      if (user) {
+        const active = user?.status === "active";
+        return res.send({ active });
+      }
+      res.status(404).send({ message: "User not found" });
+    });
 
     // User add to database
     app.post("/users", async (req, res) => {
@@ -124,7 +124,7 @@ async function run() {
         const filter = { _id: new ObjectId(id) };
         const updateDoc = {
           $set: {
-            status: "Blocked",
+            status: "blocked",
           },
         };
         const result = await userCollection.updateOne(filter, updateDoc);
