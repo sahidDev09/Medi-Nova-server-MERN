@@ -172,6 +172,15 @@ async function run() {
       res.send(result);
     });
 
+    //delete tests
+
+    app.delete("/tests/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await testsCollection.deleteOne(query);
+      res.send(result);
+    });
+
     // Get banner data
     app.get("/banner", async (req, res) => {
       const result = await allBanner.find({ status: true }).toArray();
