@@ -181,6 +181,31 @@ async function run() {
       res.send(result);
     });
 
+    //get tests by id
+
+    app.get("/tests/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await testsCollection.findOne(query);
+      res.send(result);
+    });
+
+    //update test data api
+
+    app.patch("/tests/update/:id", async (req, res) => {
+      const id = req.params.id;
+      const testData = req.body;
+      const query = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          ...testData,
+        },
+      };
+      const result = await testsCollection.updateOne(query, updateDoc, options);
+      res.send(result);
+    });
+
     // Get banner data
     app.get("/banner", async (req, res) => {
       const result = await allBanner.find({ status: true }).toArray();
