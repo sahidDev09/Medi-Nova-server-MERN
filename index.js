@@ -5,6 +5,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const port = process.env.PORT || 8000;
 
@@ -32,6 +33,9 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
+    await client.connect();
+    console.log("Connected to MongoDB");
+
     // All collections
     const allBanner = client.db("MediNova").collection("banners");
     const userCollection = client.db("MediNova").collection("users");
@@ -39,13 +43,14 @@ async function run() {
 
     // Verify token middleware
     const verifyToken = async (req, res, next) => {
-      if (!req.headers.authorization) {
-        return res.status(401).send({ message: "unauthorized access" });
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ message: "Unauthorized access" });
       }
-      const token = req.headers.authorization.split(" ")[1];
+      const token = authHeader.split(" ")[1];
       jwt.verify(token, process.env.ACCESS_TOKEN_PRIVATE, (error, decoded) => {
         if (error) {
-          return res.status(401).send({ message: "unauthorized access" });
+          return res.status(401).json({ message: "Unauthorized access" });
         }
         req.decoded = decoded;
         next();
@@ -55,63 +60,74 @@ async function run() {
     // Verify admin middleware
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
-      const query = { email: email };
-      const user = await userCollection.findOne(query);
-      const isAdmin = user?.role === "admin";
-      if (!isAdmin) {
-        return res.status(403).send({ message: "forbidden access" });
+      const user = await userCollection.findOne({ email });
+      if (user?.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden access" });
       }
       next();
     };
 
+    // Create payment intent
+    app.post("/create-payment-intent", verifyToken, async (req, res) => {
+      const price = req.body.price;
+      if (!price || price < 0)
+        return res.status(400).json({ message: "Invalid price" });
+      const priceInCents = Math.round(parseFloat(price) * 100);
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: priceInCents,
+          currency: "usd",
+          automatic_payment_methods: {
+            enabled: true,
+          },
+        });
+        res.json({ clientSecret: paymentIntent.client_secret });
+      } catch (error) {
+        res
+          .status(500)
+          .json({ message: "Payment intent creation failed", error });
+      }
+    });
+
     // Users get from MongoDB
     app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
-      console.log(req.headers);
-      const result = await userCollection.find().toArray();
-      res.send(result);
+      const users = await userCollection.find().toArray();
+      res.json(users);
     });
 
     // Check if user is admin
     app.get("/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "unauthorized access" });
+        return res.status(403).json({ message: "Unauthorized access" });
       }
-      const query = { email: email };
-      const user = await userCollection.findOne(query);
-      let admin = true;
-      if (user) {
-        admin = user?.role === "admin";
-      }
-      res.send({ admin });
+      const user = await userCollection.findOne({ email });
+      res.json({ admin: user?.role === "admin" });
     });
 
-    // check is user blocked or active
-
+    // Check if user is blocked or active
     app.get("/users/status/:email", async (req, res) => {
       const email = req.params.email;
-      const query = { email: email };
-      const user = await userCollection.findOne(query);
+      const user = await userCollection.findOne({ email });
       if (user) {
-        const active = user?.status === "active";
-        return res.send({ active });
+        res.json({ active: user.status === "active" });
+      } else {
+        res.status(404).json({ message: "User not found" });
       }
-      res.status(404).send({ message: "User not found" });
     });
 
     // User add to database
     app.post("/users", async (req, res) => {
       const user = req.body;
-      const query = { email: user.email };
-      const existUser = await userCollection.findOne(query);
+      const existUser = await userCollection.findOne({ email: user.email });
       if (existUser) {
-        return res.send({
-          message: "user already exist in database",
+        return res.json({
+          message: "User already exists in database",
           insertedId: null,
         });
       }
       const result = await userCollection.insertOne(user);
-      res.send(result);
+      res.json(result);
     });
 
     // Block user by admin
@@ -122,21 +138,17 @@ async function run() {
       async (req, res) => {
         const id = req.params.id;
         const filter = { _id: new ObjectId(id) };
-        const updateDoc = {
-          $set: {
-            status: "blocked",
-          },
-        };
+        const updateDoc = { $set: { status: "blocked" } };
         const result = await userCollection.updateOne(filter, updateDoc);
-        res.send(result);
+        res.json(result);
       }
     );
 
-    //user modal
+    // User info by ID
     app.get("/user/info/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
-      const result = await userCollection.findOne({ _id: new ObjectId(id) });
-      res.send(result);
+      const user = await userCollection.findOne({ _id: new ObjectId(id) });
+      res.json(user);
     });
 
     // Make an admin
@@ -147,69 +159,53 @@ async function run() {
       async (req, res) => {
         const id = req.params.id;
         const filter = { _id: new ObjectId(id) };
-        const updatedDoc = {
-          $set: {
-            role: "admin",
-          },
-        };
-        const result = await userCollection.updateOne(filter, updatedDoc);
-        res.send(result);
+        const updateDoc = { $set: { role: "admin" } };
+        const result = await userCollection.updateOne(filter, updateDoc);
+        res.json(result);
       }
     );
 
-    //get tests date form client
-
+    // Add test data
     app.post("/tests", async (req, res) => {
       const test = req.body;
       const result = await testsCollection.insertOne(test);
-      res.send(result);
+      res.json(result);
     });
 
-    //get test data
-
+    // Get test data
     app.get("/tests", async (req, res) => {
-      const result = await testsCollection.find().toArray();
-      res.send(result);
+      const tests = await testsCollection.find().toArray();
+      res.json(tests);
     });
 
-    //delete tests
-
+    // Delete test
     app.delete("/tests/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await testsCollection.deleteOne(query);
-      res.send(result);
+      const result = await testsCollection.deleteOne({ _id: new ObjectId(id) });
+      res.json(result);
     });
 
-    //get tests by id
-
+    // Get test by ID
     app.get("/tests/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await testsCollection.findOne(query);
-      res.send(result);
+      const test = await testsCollection.findOne({ _id: new ObjectId(id) });
+      res.json(test);
     });
 
-    //update test data api
-
+    // Update test data
     app.patch("/tests/update/:id", async (req, res) => {
       const id = req.params.id;
       const testData = req.body;
-      const query = { _id: new ObjectId(id) };
-      const options = { upsert: true };
-      const updateDoc = {
-        $set: {
-          ...testData,
-        },
-      };
-      const result = await testsCollection.updateOne(query, updateDoc, options);
-      res.send(result);
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: testData };
+      const result = await testsCollection.updateOne(filter, updateDoc);
+      res.json(result);
     });
 
     // Get banner data
     app.get("/banner", async (req, res) => {
-      const result = await allBanner.find({ status: true }).toArray();
-      res.json(result);
+      const banners = await allBanner.find({ status: true }).toArray();
+      res.json(banners);
     });
 
     // Auth related API
@@ -218,17 +214,19 @@ async function run() {
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_PRIVATE, {
         expiresIn: "30d",
       });
-      res.send({ token });
+      res.json({ token });
     });
 
+    // Ping to check MongoDB connection
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
-  } finally {
-    // Ensure client will close when you finish/error
+  } catch (error) {
+    console.error("An error occurred while running the server:", error);
   }
 }
+
 run().catch(console.dir);
 
 // End of MongoDB
