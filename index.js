@@ -40,6 +40,7 @@ async function run() {
     const allBanner = client.db("MediNova").collection("banners");
     const userCollection = client.db("MediNova").collection("users");
     const testsCollection = client.db("MediNova").collection("tests");
+    const bookedAppointments = client.db("MediNova").collection("reservations");
 
     // Verify token middleware
     const verifyToken = async (req, res, next) => {
@@ -206,6 +207,23 @@ async function run() {
     app.get("/banner", async (req, res) => {
       const banners = await allBanner.find({ status: true }).toArray();
       res.json(banners);
+    });
+
+    //add booked data from client
+
+    app.post("/bookings", async (req, res) => {
+      const bookings = req.body;
+      const result = await bookedAppointments.insertOne(bookings);
+      res.send(result);
+    });
+
+    //get bookings
+
+    app.get("/bookings/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await bookedAppointments.find(query).toArray();
+      res.send(result);
     });
 
     // Auth related API
