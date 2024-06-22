@@ -46,11 +46,12 @@ async function run() {
     const bookedAppointments = client.db("MediNova").collection("reservations");
     const allRecommendation = client
       .db("MediNova")
-      .collection("recommendation");
+      .collection("recommendations");
 
     // Verify token middleware
     const verifyToken = async (req, res, next) => {
       const authHeader = req.headers.authorization;
+
       if (!authHeader) {
         return res.status(401).json({ message: "Unauthorized access" });
       }
@@ -98,9 +99,9 @@ async function run() {
 
     //get all recommendation
 
-    app.get("/reccomendation", async (req, res) => {
-      const result = await allRecommendation.find().toArray();
-      res.send(result);
+    app.get("/recommendations", async (req, res) => {
+      const reccom = await allRecommendation.find().toArray();
+      res.json(reccom);
     });
 
     // Users get from MongoDB
