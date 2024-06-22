@@ -125,7 +125,7 @@ async function run() {
     });
 
     // User add to database
-    app.post("/users", verifyToken, async (req, res) => {
+    app.post("/allusers", async (req, res) => {
       const user = req.body;
       const existUser = await userCollection.findOne({ email: user.email });
       if (existUser) {
@@ -143,7 +143,7 @@ async function run() {
       const userData = req.body;
       const filter = { _id: new ObjectId(id) };
       const updateDoc = { $set: userData };
-      const result = await userCollection.updateOne(filter, updateDoc); 
+      const result = await userCollection.updateOne(filter, updateDoc);
       res.json(result);
     });
     // Block user by admin
@@ -220,9 +220,51 @@ async function run() {
 
     // Get banner data
     app.get("/banner", async (req, res) => {
-      const banners = await allBanner.find({ status: true }).toArray();
+      const banners = await allBanner.find({ status: "true" }).toArray();
       res.json(banners);
     });
+
+    app.get("/allbanners", verifyToken, verifyAdmin, async (req, res) => {
+      const banners = await allBanner.find().toArray();
+      res.json(banners);
+    });
+
+    //delete banners
+
+    app.delete("/allbanners/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await allBanner.deleteOne(query);
+      res.send(result);
+    });
+
+    //add banner data
+
+    app.post("/banner", async (req, res) => {
+      const bannerData = req.body;
+      const result = await allBanner.insertOne(bannerData);
+      res.send(result);
+    });
+
+    //make displayed banner
+
+    app.patch(
+      "/allbanners/display/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = {};
+        const updateDoc = { $set: { status: "false" } };
+        await allBanner.updateMany(filter, updateDoc);
+
+        const makedisID = { _id: new ObjectId(id) };
+        const makeDisUpdateDoc = { $set: { status: "true" } };
+        const result = await allBanner.updateOne(makedisID, makeDisUpdateDoc);
+
+        res.json(result);
+      }
+    );
 
     //add booked data from client
 
