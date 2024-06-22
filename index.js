@@ -276,7 +276,7 @@ async function run() {
 
     //get bookings
 
-    app.get("/bookings/:email", async (req, res) => {
+    app.get("/bookings/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
       const result = await bookedAppointments.find(query).toArray();
@@ -285,7 +285,7 @@ async function run() {
 
     // cancel booking
 
-    app.delete("/bookings/:id", async (req, res) => {
+    app.delete("/bookings/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await bookedAppointments.deleteOne(query);
@@ -302,7 +302,7 @@ async function run() {
     });
 
     // Ping to check MongoDB connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
