@@ -11,7 +11,11 @@ const port = process.env.PORT || 8000;
 
 // middleware
 const middleOption = {
-  origin: ["http://localhost:5173", "http://localhost:5174"],
+  origin: [
+    "http://localhost:5173",
+    "https://medinova-dc16a.web.app",
+    "https://medinova-dc16a.firebaseapp.com",
+  ],
   credentials: true,
   optionSuccessStatus: 200,
 };
@@ -33,7 +37,6 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
     console.log("Connected to MongoDB");
 
     // All collections
@@ -41,6 +44,9 @@ async function run() {
     const userCollection = client.db("MediNova").collection("users");
     const testsCollection = client.db("MediNova").collection("tests");
     const bookedAppointments = client.db("MediNova").collection("reservations");
+    const allRecommendation = client
+      .db("MediNova")
+      .collection("recommendation");
 
     // Verify token middleware
     const verifyToken = async (req, res, next) => {
@@ -88,6 +94,13 @@ async function run() {
           .status(500)
           .json({ message: "Payment intent creation failed", error });
       }
+    });
+
+    //get all recommendation
+
+    app.get("/reccomendation", async (req, res) => {
+      const result = await allRecommendation.find().toArray();
+      res.send(result);
     });
 
     // Users get from MongoDB
