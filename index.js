@@ -96,6 +96,13 @@ async function run() {
       res.json(users);
     });
 
+    app.get("/users/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await userCollection.findOne(query);
+      res.send(result);
+    });
+
     // Check if user is admin
     app.get("/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
@@ -118,7 +125,7 @@ async function run() {
     });
 
     // User add to database
-    app.post("/users", async (req, res) => {
+    app.post("/users", verifyToken, async (req, res) => {
       const user = req.body;
       const existUser = await userCollection.findOne({ email: user.email });
       if (existUser) {
@@ -131,6 +138,14 @@ async function run() {
       res.json(result);
     });
 
+    app.patch("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const userData = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: userData };
+      const result = await userCollection.updateOne(filter, updateDoc); 
+      res.json(result);
+    });
     // Block user by admin
     app.patch(
       "/users/block/:id",
@@ -223,6 +238,15 @@ async function run() {
       const email = req.params.email;
       const query = { email: email };
       const result = await bookedAppointments.find(query).toArray();
+      res.send(result);
+    });
+
+    // cancel booking
+
+    app.delete("/bookings/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await bookedAppointments.deleteOne(query);
       res.send(result);
     });
 
