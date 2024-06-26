@@ -260,6 +260,15 @@ async function run() {
       res.send(result);
     });
 
+    //reservation under specific test
+
+    app.get("/reservation/:test_id", async (req, res) => {
+      const id = req.params.test_id;
+      const query = { test_id: id };
+      const result = await bookedAppointments.find(query).toArray();
+      res.json(result);
+    });
+
     //make displayed banner
 
     app.patch(
