@@ -297,6 +297,11 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/bookings", async (req, res) => {
+      const result = await bookedAppointments.find().toArray();
+      res.send(result);
+    });
+
     //get bookings
 
     app.get("/bookings/:email", verifyToken, async (req, res) => {
