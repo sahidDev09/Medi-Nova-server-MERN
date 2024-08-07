@@ -105,7 +105,7 @@ async function run() {
     });
 
     // Users get from MongoDB
-    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
+    app.get("/users", async (req, res) => {
       const users = await userCollection.find().toArray();
       res.json(users);
     });
@@ -251,7 +251,6 @@ async function run() {
       const result = await allBanner.deleteOne(query);
       res.send(result);
     });
-
     //add banner data
 
     app.post("/banner", async (req, res) => {
